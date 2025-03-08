@@ -1,0 +1,8 @@
+# any action videos 
+1. Segment Videos into Segments
+
+# re-generate caption
+2. Enhance captioning + object labels
+
+# input captioning and single segment of video.
+3. Get objects segmentation 
