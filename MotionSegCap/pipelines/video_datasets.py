@@ -81,7 +81,7 @@ def sample_frames_from_videos(video_path, K):
 
 class SSV2_Dataset(Dataset):
     
-    def __init__(self, json_file = '/home/qjx0814/ecole-video/data_construction/instruction_data/qwen-SSV2-train-32B-processed.json', root_dir="/shared/nas/data/m1/shared-resource/vision-language/data/raw/ssv2/videos/clips_downsampled_5fps_downsized_224x224", num_frames = 16):
+    def __init__(self, json_file = '/home/qjx0814/ecole-video/data_construction/instruction_data/qwen-SSV2-train-32B-processed.json', root_dir="/shared/nas/data/m1/shared-resource/vision-language/data/raw/ssv2/videos/clips_downsampled_5fps_downsized_224x224", num_frames = 32):
         
         with open(json_file,'r') as f:
             content = json.load(f)
@@ -113,7 +113,7 @@ class SSV2_Dataset(Dataset):
     def __getitem__(self,i):         
         video_path = self.video_path_list[i]
         pil_image_list,tensored_image_list = sample_frames_from_videos(video_path, self.num_frames)
-        return dict(pil_image_list= pil_image_list, tensored_image_list=tensored_image_list, question= self.question_list[i],answer=self.answer_list[i])
+        return dict(video_path = video_path, pil_image_list= pil_image_list, tensored_image_list=tensored_image_list, question= self.question_list[i],answer=self.answer_list[i])
     
     def __len__(self):
         return len(self.video_path_list)
