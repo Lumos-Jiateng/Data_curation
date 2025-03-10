@@ -1,0 +1,2 @@
+video_source,video_masked,captions,questions,answers,data_list
+/shared/nas/data/m1/jiateng5/Data_curation/MotionSegCap/curated_data/ssv2/188253/source.mp4,/shared/nas/data/m1/jiateng5/Data_curation/MotionSegCap/curated_data/ssv2/188253/mask.mp4,coffee cup,What's the key action in the video?,holding cup in front of cup,"['hand', 'cup', 'coffee cup']"

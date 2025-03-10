@@ -51,6 +51,36 @@ from openai import OpenAI
 # 1. Create the OpenAI client instance here
 client = OpenAI(api_key="")
 
+import csv
+import os
+
+def store_csv(csv_file, video_a, video_b, captions, questions, answers, data_list):
+    """
+    Stores metadata into a CSV file.
+    
+    Parameters:
+    csv_file (str): Path to the CSV file.
+    video_a (str): Path to the first video file.
+    video_b (str): Path to the second video file.
+    captions (str): Captions related to the videos.
+    questions (str): Questions related to the videos.
+    answers (str): Answers related to the questions.
+    data_list (list): Additional data to be stored as a JSON-like string.
+    """
+    # Check if the file exists to determine if headers should be written
+    file_exists = os.path.isfile(csv_file)
+    
+    # Open the CSV file in append mode
+    with open(csv_file, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        
+        # Write the header if the file is new
+        if not file_exists:
+            writer.writerow(["video_source", "video_masked", "captions", "questions", "answers", "data_list"])
+        
+        # Write the data row
+        writer.writerow([video_a, video_b, captions, questions, answers, str(data_list)])
+
 import re
 
 def encode_pil_image(pil_image: Image.Image) -> str:
@@ -88,7 +118,7 @@ def get_objects_for_action(
                     "type": "text",
                     "text": (
                         f"Action description: {action_desc}.\n"
-                        "Identify all the objects associated with this action description and exists within the following images. Do not include the background objects into your answer."
+                        "Identify all the objects associated with this action description and exists within the following images. Output any objects which are related to the action. But do not include the background objects into your answer."
                         "Return only a list of the names objects, "
                         "like ['arm', 'bottle', 'television']."
                     ),
@@ -410,6 +440,9 @@ if __name__ == "__main__":
     # make dir
     os.makedirs(output_dir, exist_ok=True)
     
+    # load model
+    model = load_model(config_file, grounded_checkpoint, bert_base_uncased_path, device=device)
+    
     # get each piece of data
     for i in range(len(dataset)):
         pil_image_list = dataset[i]['pil_image_list']
@@ -424,15 +457,10 @@ if __name__ == "__main__":
         
         # load image
         image_pil, image = pil_image_list[0],tensored_image_list[0]
-        # load model
-        model = load_model(config_file, grounded_checkpoint, bert_base_uncased_path, device=device)
  
         text_prompt = original_label
-        import ipdb;ipdb.set_trace()
         text_prompt_list = get_objects_for_action(text_prompt, pil_image_list[0],pil_image_list[8])
         # Use GPT-models to curate the text_prompt to associated objects. 
-        
-        text_prompt_list = ['hand','cup','coffee cup']
         
         boxes_list = []
         
@@ -446,7 +474,7 @@ if __name__ == "__main__":
         
         image_array = np.array(image_pil)
         
-        import ipdb;ipdb.set_trace()
+        #import ipdb;ipdb.set_trace()
         
         inference_state = predictor.init_state(video_path=pil_image_list)
         predictor.reset_state(inference_state)
@@ -481,34 +509,26 @@ if __name__ == "__main__":
        
         # draw output image
         #if if_vis:
-            
-            # this part can save as videos for visualization
-            '''
-            vis_frame_stride = 1
-            for out_frame_idx in range(0, len(pil_image_list), vis_frame_stride):
-                plt.figure(figsize=(6, 4))
-                plt.title(f"frame {out_frame_idx}")
-                plt.imshow(pil_image_list[out_frame_idx])
-                for out_obj_id, out_mask in video_segments[out_frame_idx].items():
-                    show_mask(out_mask.astype(int), plt.gca(), random_color=True) 
-                    
-                plt.savefig(f'/shared/nas/data/m1/jiateng5/MotionSegCap/pipelines/debug_vis/{out_frame_idx}.jpg')
-            '''
+        # this part can save as videos for visualization
         # store with the unique video_id 
         root_dir = os.path.join('/shared/nas/data/m1/jiateng5/Data_curation/MotionSegCap/curated_data',args.input_dataset_name)
         store_dir = os.path.join(root_dir,unique_id)
+        
         initial_detect_path = os.path.join(store_dir,'initial_detect.jpg')
         original_video_path = os.path.join(store_dir,'source.mp4')
         masked_video_path = os.path.join(store_dir,'mask.mp4')
         
+        images_dir = os.path.join(store_dir,'images')
+        
         os.makedirs(store_dir,exist_ok = True)
+        os.makedirs(images_dir,exist_ok = True)
             
         for i in range(1):
             plt.figure(figsize=(9, 6))
             plt.title(f"frame {ann_frame_idx}")
             plt.imshow(pil_image_list[i])
             for box in boxes_array_list:
-                show_box(box, plt.gca(),text_prompt)
+                show_box(box, plt.gca(),str(text_prompt_list))
         #show_mask((out_mask_logits[0] > 0.0).cpu().numpy(), plt.gca(), obj_id=out_obj_ids[0])
         
             plt.savefig(initial_detect_path)
@@ -520,7 +540,22 @@ if __name__ == "__main__":
         save_source(pil_image_list, original_video_path)
         save_mask(pil_image_list, video_segments, masked_video_path)
         
+        # store the image at the same time in case that videos cannot be visualized.
+        vis_frame_stride = 8
+        for out_frame_idx in range(0, len(pil_image_list), vis_frame_stride):
+            plt.figure(figsize=(6, 4))
+            plt.title(f"frame {out_frame_idx}")
+            plt.imshow(pil_image_list[out_frame_idx])
+            for out_obj_id, out_mask in video_segments[out_frame_idx].items():
+                show_mask(out_mask.astype(int), plt.gca(), random_color=True) 
+            
+            output_path = os.path.join(images_dir, f'{out_frame_idx}.jpg')
+            plt.savefig(output_path)
         
+        # write into csv_file
+        csv_path = os.path.join(root_dir,'metadata.csv')
+        store_csv(csv_path, original_video_path , masked_video_path, text_prompt, original_question, original_label, text_prompt_list)
+
         
         '''
         plt.figure(figsize=(10, 10))
